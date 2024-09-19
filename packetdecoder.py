@@ -220,11 +220,35 @@ def AnnounceData(Data,HeaderContext):
   print("      UTF-8: "+str(AppData.decode("utf-8",errors="ignore")))
   print("")
   if AppData != None and AppData != b"":
-    try:
-      message = msgpack.unpackb(AppData)
-      print(message)
-    except:
-      pass
+    if AppData[0] == 0x93:
+      print("Propagation node:")
+      if AppData[1] == 0xc3:
+        print("    Active")
+      elif AppData[1] == 0xc2:
+        print("    Inactive")
+      buffer = AppData[3:7]
+      print("    Time:     "+str(int.from_bytes(buffer,"big")))
+      buffer = 0
+      if AppData[7]== 0xcd:
+        buffer = int.from_bytes(AppData[8:10],"big")
+      elif AppData[7] == 0xcb:
+        buffer = AppData[8:16]
+        print("    WARNING: Using float64, not uint16!")
+        print("    Find this system and fix it!")
+        import struct
+        buffer = struct.unpack(">d",buffer)[0]
+      if buffer != 0:
+        print("    Max Size: "+str(buffer)+" KB")
+    elif AppData[0] == 0x92:
+      if AppData[1] == 0xc4:
+        buffer = bytearray(b"")
+        for i in range(3,AppData[2]+3):
+          buffer.append(AppData[i])
+        print("Announced Name: "+str(buffer.decode('utf-8')))
+        if AppData[3+AppData[2]] != 0xc0:
+          print("Ticket:         "+str(AppData[3+AppData[2]]))
+        else:
+          print("Ticket:          None")
 
 def DumpPacket(path):
   with open(path,'rb') as packet:
