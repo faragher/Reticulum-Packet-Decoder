@@ -6,7 +6,8 @@ import msgpack
 # 1: 
 hIFAC            = 0b10000000# 1 bit
 hHeaderType      = 0b01000000# 1 bit
-hPropagationType = 0b00110000# 2 bits
+hContext         = 0b00100000# 1 bit
+hPropagationType = 0b00010000# 1 bit
 hDestinationType = 0b00001100# 2 bits
 hPacketType      = 0b00000011# 2 bits
 # 2: Hops
@@ -51,6 +52,18 @@ DestinationEnum = {
   0x03: "Link         (11)"
 }
 
+HeaderContextEnum = {
+  0x00: "Unknown       (0)",
+  0x01: "Unknown       (1)"
+
+}
+
+AnnounceHeaderContextEnum = {
+  0x00: "No Ratchet    (0)",
+  0x01: "Ratchet       (1)"
+
+}
+
 PacketTypeEnum = {
   0x00: "Data         (00)",
   0x01: "Announce     (01)",
@@ -81,6 +94,11 @@ ContextEnum = {
   0xfe: "Link Request Time Measurement",
   0xff: "Link Request Proof"
   
+}
+
+Codes = {
+  "Announce": 0x01,
+  "Ratchet": 0x01
 }
 
 def GetContext(con):
@@ -115,9 +133,11 @@ def ParsePacket(path):
   # Header 
   IFAC = (hIFAC&wholefile[0])>>7
   HeaderType = (hHeaderType&wholefile[0])>>6
+  HeaderContext = (hContext&wholefile[0])>>5
   PropagationType = (hPropagationType&wholefile[0])>>4
   DestinationType = (hDestinationType&wholefile[0])>>2
   PacketType = hPacketType&wholefile[0]
+  
   Hops = wholefile[1]
     
 
@@ -125,6 +145,10 @@ def ParsePacket(path):
   print("### Header ###")
   print("IFAC:             "+IFACEnum[IFAC])
   print("Header Type:      "+HeaderEnum[HeaderType])
+  if PacketType == 1:
+    print("Header Context:   "+AnnounceHeaderContextEnum[HeaderContext])
+  else:
+    print("Header Context:   "+HeaderContextEnum[HeaderContext])
   print("Propagation Type: "+PropagationEnum[PropagationType])
   print("Destination Type: "+DestinationEnum[DestinationType])
   print("Packet Type:      "+PacketTypeEnum[PacketType])
@@ -158,7 +182,7 @@ def ParsePacket(path):
     Data = wholefile[19:]
     
   if PacketType == 1:
-    AnnounceData(Data)
+    AnnounceData(Data,HeaderContext)
   elif DestinationType == 3:
     print("### Link data is encrypted ###")
     print("")
@@ -174,20 +198,24 @@ def RawData(Data):
   print("UTF-8: ")# Ignores errors
   print(Data.decode("utf-8",errors="replace"))
   
-def AnnounceData(Data):
+def AnnounceData(Data,HeaderContext):
   print("### Announce Data ###")
   PubKey = Data[:64]
   NameHash = Data[64:74]
   RandomHash = Data[74:84]
   Signature = Data[84:148]
-  Ratchet = Data[148:180]
-  AppData = Data[180:]
+  if HeaderContext == Codes["Ratchet"]:
+    Ratchet = Data[148:180]
+    AppData = Data[180:]
+  else:
+    AppData = Data[148:]
   
   print("Public Key:  "+str(PubKey.hex()))
   print("Name Hash:   "+str(NameHash.hex()))
   print("Random Hash: "+str(RandomHash.hex()))
   print("Signature:   "+str(Signature.hex()))
-  print("Ratchet:     "+str(Ratchet.hex()))
+  if HeaderContext == Codes["Ratchet"]:
+    print("Ratchet:     "+str(Ratchet.hex()))
   print("Raw AppData: "+str(AppData.hex()))
   print("      UTF-8: "+str(AppData.decode("utf-8",errors="ignore")))
   print("")
